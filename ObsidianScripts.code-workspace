@@ -9,6 +9,12 @@
 		},
 		{
 			"path": ".."
+		},
+		{
+			"path": "../../../ttasks"
+		},
+		{
+			"path": "../../../Projects/ttasks"
 		}
 	],
 	"settings": {
