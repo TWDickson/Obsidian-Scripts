@@ -6,6 +6,23 @@ module.exports = {
     }
 };
 
+async function loadScriptModule(app, moduleFileName) {
+    try { return require(`./${moduleFileName}`); } catch (e) {}
+    try { return require(`Scripts/${moduleFileName}`); } catch (e) {}
+    try {
+        const basePath = app?.vault?.adapter?.basePath;
+        if (basePath) return require(`${basePath}/Scripts/${moduleFileName}`);
+    } catch (e) {}
+    try {
+        const source = await app.vault.adapter.read(`Scripts/${moduleFileName}`);
+        const module = { exports: {} };
+        const fn = new Function('module', 'exports', source);
+        fn(module, module.exports);
+        return module.exports || {};
+    } catch (e) {}
+    return null;
+}
+
 async function start(params, settings) {
     /** @type {import("./Quickadd").quickAddApi} */
     const _quickAddApi = params.quickAddApi;
@@ -17,6 +34,8 @@ async function start(params, settings) {
     /** type {import("./obsidian").Modal} */
     const Modal = params.obsidian?.Modal ?? globalThis.Modal;
     const dataView = app.plugins.plugins.dataview?.api
+    const sharedStyles = await loadScriptModule(app, 'SharedQuickAddStyles.js');
+    const getJournalThoughtModalCss = sharedStyles?.getJournalThoughtModalCss ?? (() => '');
 
     const entryDate = moment();
     const entry_date_iso = entryDate.format(); // For frontmatter
@@ -114,133 +133,7 @@ async function start(params, settings) {
                 this.setTitle('Journal Thought');
                 try { contentEl.classList.add('journal-modal'); } catch (e) {}
                 const styleEl = contentEl.createEl('style');
-                styleEl.textContent = `
-                    /* Layout */
-                    .journal-modal { box-sizing: border-box; max-width: var(--modal-max-width); }
-                    /* center inner content and constrain to 90% so inputs don't hit the edges */
-                    .journal-modal .row { display:flex; flex-direction:column; gap:8px; width:90%; max-width:100%; margin:0 auto; box-sizing:border-box; padding-bottom:12px; }
-                    .journal-modal label { font-weight:600; margin-bottom:4px; color: var(--text-normal); }
-                    .journal-modal .small { font-size:0.9rem; color:var(--text-muted); }
-
-                    /* Unified input styles (theme-aware) */
-                    .journal-modal input[type="text"],
-                    .journal-modal input[type="datetime-local"],
-                    .journal-modal input[type="number"],
-                    .journal-modal select,
-                    .journal-modal textarea {
-                        width:100%;
-                        max-width:100%;
-                        min-width:0;
-                        box-sizing:border-box;
-                        font-size: clamp(0.95rem, 1.5vw, 1rem);
-                        padding: 8px 10px;
-                        border-radius: var(--border-radius, 6px);
-                        border: 1px solid var(--interactive-accent, rgba(0,0,0,0.08));
-                        background: var(--background-primary, var(--background-modifier-border, #fff));
-                        color: var(--text-normal);
-                    }
-                    .journal-modal input::placeholder, .journal-modal textarea::placeholder { color: var(--text-muted); }
-                    .journal-modal textarea { min-height:8em; resize:vertical; }
-
-                    /* Fix for select text clipping: ensure adequate vertical space and proper line-height */
-                    .journal-modal select {
-                        box-sizing: border-box;
-                        padding-top: 8px;
-                        padding-bottom: 8px;
-                        padding-right: 36px; /* space for dropdown arrow */
-                        line-height: 1.4; /* taller line-height prevents vertical clipping */
-                        min-height: calc(1.4em + 16px);
-                        height: auto;
-                        vertical-align: middle;
-                        overflow: hidden;
-                        text-overflow: ellipsis;
-                        white-space: nowrap;
-                        appearance: none;
-                        -webkit-appearance: none;
-                        -moz-appearance: none;
-                        background-repeat: no-repeat;
-                        background-position: right 10px center;
-                    }
-                    .journal-modal select option { line-height: 1.6; }
-
-                    /* Ensure datetime input doesn't exceed other input widths
-                        and behaves like other inputs (prevents oversized browser controls) */
-                    .journal-modal input[type="datetime-local"] {
-                        width: 100%;
-                        max-width: 100%;
-                        display: block;
-                        box-sizing: border-box;
-                        padding: 8px 10px;
-                        font-size: inherit;
-                        min-width: 0; /* prevent intrinsic min-size from expanding on some mobile browsers */
-                        -webkit-appearance: none;
-                        appearance: none;
-                        max-inline-size: 100%;
-                    }
-
-                    .journal-modal input:focus, .journal-modal textarea:focus, .journal-modal select:focus {
-                        outline: 2px solid var(--interactive-normal, rgba(0,120,212,0.18));
-                        outline-offset: 2px;
-                        box-shadow: 0 0 0 3px color-mix(in srgb, var(--interactive-normal, rgba(0,120,212,0.12)) 12%, transparent);
-                    }
-
-                    /* Buttons */
-                    .journal-modal .btn-row { margin-top:12px; display:flex; gap:8px; justify-content:flex-end; align-items:center; overflow: visible; }
-                    .journal-modal .btn-row button {
-                        padding: 8px 12px;
-                        border-radius: var(--border-radius, 6px);
-                        border: 1px solid var(--interactive-muted, rgba(0,0,0,0.08));
-                        background: transparent;
-                        color: var(--text-normal);
-                        cursor: pointer;
-                        font-size: 0.95rem;
-                    }
-                    /* Use outline for focus ring (doesn't affect layout) to avoid scrollbars */
-                    .journal-modal .btn-row button:focus { outline: 2px solid var(--interactive-accent, rgba(0,120,212,0.18)); outline-offset: 2px; }
-                    /* Primary submit button using Obsidian variables */
-                    .journal-modal .btn-row .primary {
-                        background: var(--interactive-accent, #2ea3f2);
-                        color: var(--text-on-accent, #ffffff);
-                        border-color: transparent;
-                    }
-                    .journal-modal .btn-row .primary:hover { filter: brightness(0.98); }
-
-                    /* Tags area */
-                    .journal-modal .tags-wrapper { width:100%; max-width:100%; box-sizing:border-box; }
-                    .journal-modal .selected-tags { display:flex; flex-wrap:wrap; gap:6px; max-width:100%; overflow:hidden; }
-                    .journal-modal .tag-pill { max-width:100%; white-space:nowrap; text-overflow:ellipsis; overflow:hidden; background: var(--interactive-accent, #eee); color: var(--text-on-accent, var(--text-normal)); padding: 4px 8px; border-radius: var(--border-radius, 999px); }
-
-                    /* Ensure elements inside flex containers can shrink on small screens */
-                    .journal-modal .tag-suggester-input, .journal-modal .tag-input { min-width:0; }
-
-                    /* Prevent horizontal scrolling within the modal */
-                    .journal-modal, .journal-modal * { max-width:100%; box-sizing:border-box; }
-                    .journal-modal { overflow-x: hidden; }
-
-                    /* Mobile-safe modal: avoid applying large padding to the modal itself
-                       — only add a small safe-area offset to the inner scroll area to
-                       prevent giant empty space when the keyboard opens. */
-                    .is-phone .modal { margin-bottom: 0; max-width: calc(100vw - 12px); overflow-x:hidden; }
-                    .is-phone .modal .modal-content, .is-phone .modal .modal-inner {
-                        padding-bottom: calc(var(--safe-area-inset-bottom, 0px) + 8px);
-                    }
-                    /* Make modal buttons align in a single responsive row on phones */
-                    .is-phone .modal .modal-button-container {
-                        display: flex;
-                        gap: 8px;
-                        flex-wrap: nowrap;
-                        align-items: center;
-                    }
-                    .is-phone .modal .modal-button-container button {
-                        flex: 1 1 auto;
-                        min-width: 0;
-                    }
-                    /* Narrow-screen tweaks specifically for datetime overflow */
-                    @media (max-width: 420px) {
-                        .journal-modal .row { width: calc(100vw - 48px); }
-                        .journal-modal input[type="datetime-local"] { max-width: calc(100% - 4px); }
-                    }
-                `;
+                styleEl.textContent = getJournalThoughtModalCss();
 
                 const row = contentEl.createDiv({ cls: 'row' });
 

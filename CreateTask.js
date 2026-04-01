@@ -615,6 +615,7 @@ async function start(params, settings) {
             '---',
             `type: ${result.type}`,
             `name: "${esc(result.name)}"`,
+            `cssclasses: [planner-task]`,
             `category: ${catVal ?? 'null'}`,
             `status: ${result.status}`,
             `priority: ${result.priority}`,
@@ -633,12 +634,13 @@ async function start(params, settings) {
             '---',
         ].join('\n');
 
-        // Build body (optional Mermaid + user notes)
+        // Build body (Meta Bind header + optional Mermaid + user notes)
         const mermaid = buildMermaidDiagram(result);
         const bodyParts = [];
         if (mermaid) bodyParts.push(mermaid);
         if (result.notes) bodyParts.push(result.notes);
-        const body = bodyParts.length ? '\n' + bodyParts.join('\n\n') + '\n' : '\n';
+        const notesSection = bodyParts.length ? bodyParts.join('\n\n') + '\n' : '';
+        const body = '\n' + buildMetaBindHeader() + notesSection;
 
         await app.vault.create(filePath, frontmatter + body);
 
@@ -672,6 +674,39 @@ async function start(params, settings) {
         console.error('CreateTask:', error);
         new Notice(`Error: ${error.message}`, 5000);
     }
+}
+
+// ── Meta Bind GUI header ───────────────────────────────────────────────────────
+function buildMetaBindHeader() {
+    return [
+        '# `VIEW[{name}][text]`',
+        '',
+        '| Field | |',
+        '|:------|:---|',
+        '| **Status** | `INPUT[inlineSelect(option(Active), option(Future), option(In Progress), option(Hold), option(Blocked), option(Cancelled)):status]` |',
+        '| **Priority** | `INPUT[inlineSelect(option(High), option(Medium), option(Low), option(None)):priority]` |',
+        '| **Category** | `INPUT[inlineSelect(option(database), option(general)):category]` |',
+        '| **Due Date** | `INPUT[date:due_date]` |',
+        '| **Start Date** | `INPUT[date:start_date]` |',
+        '| **Task Type** | `INPUT[inlineSelect(option(feature), option(bug), option(research), option(docs), option(action)):task_type]` |',
+        '| **Assigned To** | `INPUT[text:assigned_to]` |',
+        '| **Est. Days** | `INPUT[number:estimated_days]` |',
+        '| **Blocked Reason** | `INPUT[text:blocked_reason]` |',
+        '',
+        '```meta-bind-button',
+        'style: primary',
+        'label: ✓ Mark Complete',
+        'id: mark-complete',
+        'actions:',
+        '  - type: updateMetadata',
+        '    bindTarget: status',
+        '    evaluate: false',
+        '    value: Done',
+        '```',
+        '',
+        '---',
+        '',
+    ].join('\n');
 }
 
 // ── Mermaid diagram generator ──────────────────────────────────────────────────

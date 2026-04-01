@@ -36,11 +36,30 @@ module.exports = {
     }
 };
 
+async function loadScriptModule(app, moduleFileName) {
+    try { return require(`./${moduleFileName}`); } catch (e) {}
+    try { return require(`Scripts/${moduleFileName}`); } catch (e) {}
+    try {
+        const basePath = app?.vault?.adapter?.basePath;
+        if (basePath) return require(`${basePath}/Scripts/${moduleFileName}`);
+    } catch (e) {}
+    try {
+        const source = await app.vault.adapter.read(`Scripts/${moduleFileName}`);
+        const module = { exports: {} };
+        const fn = new Function('module', 'exports', source);
+        fn(module, module.exports);
+        return module.exports || {};
+    } catch (e) {}
+    return null;
+}
+
 async function start(params, settings) {
     const app = params.app;
     const variables = params.variables = params.variables || {};
     const Modal = params.obsidian?.Modal ?? globalThis.Modal;
     const dataView = app.plugins.plugins.dataview?.api;
+    const sharedStyles = await loadScriptModule(app, 'SharedQuickAddStyles.js');
+    const getPatternModalCss = sharedStyles?.getPatternModalCss ?? (() => '');
 
     const now = moment();
     // include seconds in the default ISO-like timestamp so filenames and parsing
@@ -172,60 +191,9 @@ async function start(params, settings) {
             // Add pattern-modal class and styles to match PatternTracking modal
             try { contentEl.classList.add('pattern-modal'); } catch (e) {}
             const styleEl = contentEl.createEl('style');
-            styleEl.textContent = `
-                /* Section spacing using responsive units */
-                .pattern-modal .pattern-row { display:flex; flex-direction:column; gap: clamp(8px, 2.5vw, 12px); width:100%; }
-                .pattern-modal .pattern-section { margin: clamp(6px, 1.8vw, 10px) 0; padding: 2px 0; margin-top:0px; }
-                /* Question titles: bold, with small gap to options */
-                .pattern-modal .pattern-row > label, .pattern-modal .pattern-row > h4 { margin-bottom:2px; display:block; font-weight:600; }
-                /* Checkbox rows should use normal weight */
-                .pattern-modal .pattern-checkbox { font-weight:400; }
-                /* Parenthetical text italicized */
-                .pattern-modal .paren { font-style:italic; font-weight:400; }
-                /* Slight indent for checkboxes and tighter vertical spacing */
-                .pattern-modal .pattern-checkbox { display:flex; align-items:center; gap: clamp(3px, 1vw, 5px); margin: 0 0 clamp(4px, 1.2vw, 6px) 0; padding-left: clamp(8px, 2vw, 12px); cursor: pointer; }
-                /* Compact inputs and type sizes */
-                .pattern-modal input[type="text"], .pattern-modal input[type="datetime-local"], .pattern-modal select, .pattern-modal textarea { max-width:100%; box-sizing:border-box; font-size: clamp(0.95rem, 1.5vw, 1rem); }
-                .pattern-modal .pattern-sep { height:1px; background: var(--interactive-muted, rgba(0,0,0,0.08)); margin: clamp(8px, 2vw, 10px) 0; }
-                    .pattern-modal button { margin-top:6px; }
-                    .pattern-modal select {
-                        background-repeat: no-repeat;
-                        background-position: right 10px center;
-                        background-size: 14px 14px;
-                        padding-right: clamp(26px, 6vw, 30px);
-                        background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path fill='currentColor' stroke='currentColor' stroke-width='1.2' d='M7 10l5 5 5-5z'/></svg>");
-                    }
-
-                    /* Trigger placeholder: lighter and italic */
-                    .pattern-modal .pattern-trigger-input::placeholder { font-style: italic; color: var(--text-muted, rgba(0,0,0,0.55)); }
-
-                /* Keep native checkbox appearance via theme; only adjust spacing */
-                .pattern-modal .pattern-checkbox input[type="checkbox"] { margin-left: clamp(4px, 1.2vw, 6px); margin-top: 0; align-self: center; vertical-align: middle; transform: translateY(-1px); }
-                .pattern-modal .pattern-checkbox span { display:inline-flex; align-items:center; line-height:1.1; padding: 0 clamp(3px, 1vw, 4px); }
-                /* 'Other' text input hidden by default; shown when the checkbox is checked (CSS-only) */
-                .pattern-modal .pattern-checkbox .other-input { display:none; margin-left:8px; }
-                .pattern-modal .pattern-checkbox input[type="checkbox"]:checked ~ .other-input { display:inline-block; }
-
-                /* Mobile-safe modal container to avoid keyboard overlap (uses safe area inset) */
-                .is-phone .modal {
-                    padding-bottom: var(--safe-area-inset-bottom);
-                    margin-bottom: 0;
-                }
-                .is-phone .modal .modal-content, .is-phone .modal .modal-inner {
-                    padding-bottom: var(--safe-area-inset-bottom);
-                }
-                .is-phone .modal .modal-button-container {
-                    display: flex;
-                    gap: 8px;
-                    flex-wrap: nowrap;
-                    align-items: center;
-                }
-                .is-phone .modal .modal-button-container button {
-                    flex: 1 1 auto;
-                    min-width: 0;
-                }
+            styleEl.textContent = getPatternModalCss(`
                 .pattern-modal .pw-error { color: var(--interactive-danger, #c0392b); margin-bottom:6px; font-weight:600; }
-            `;
+            `);
 
             const row = contentEl.createDiv({ cls: 'pattern-row' });
 
@@ -306,12 +274,10 @@ async function start(params, settings) {
             try { this.hungerInput.value = (variables.hunger_scale !== undefined && variables.hunger_scale !== '') ? variables.hunger_scale : '1'; } catch(e){}
             this.hungerInput.addEventListener('input', () => { try { this.errorEl.style.display = 'none'; this.errorEl.setText(''); } catch(e){} });
 
-            const btnRow = contentEl.createDiv();
-            btnRow.style.marginTop = '10px';
+            const btnRow = contentEl.createDiv({ cls: 'pattern-btn-row' });
             const saveBtn = btnRow.createEl('button', { text: 'Save' });
             saveBtn.addEventListener('click', () => this.save());
             const cancelBtn = btnRow.createEl('button', { text: 'Cancel' });
-            cancelBtn.style.marginLeft = '8px';
             cancelBtn.addEventListener('click', () => this.cancel());
         }
 
