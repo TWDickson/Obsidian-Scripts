@@ -21,3 +21,5 @@ node_modules/
 
 # Project context — synced via Obsidian Sync, kept private
 CLAUDE.md
+
+memory/
