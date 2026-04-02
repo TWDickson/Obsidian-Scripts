@@ -22,6 +22,16 @@
 			"editor.insertSpaces": false,
 			"editor.tabSize": 4
 		},
-		"powershell.cwd": "Scripts"
+		"powershell.cwd": "Scripts",
+		"chat.tools.terminal.autoApprove": {
+			"/^node -v && echo ok$/": {
+				"approve": true,
+				"matchCommandLine": true
+			},
+			"git -C /Users/taylordickson/Projects/ttasks": true,
+			"git add": true,
+			"git commit": true,
+			"git push": true
+		}
 	}
 }
