@@ -676,7 +676,6 @@ async function start(params, settings) {
             this._triggerInput = step.createEl('input');
             this._triggerInput.type = 'text';
             this._triggerInput.placeholder = 'What just happened? (optional)';
-            this._triggerInput.maxLength = 90;
             this._triggerInput.addEventListener('keydown', (e) => {
                 if (e.key === 'Enter') { e.preventDefault(); this._save(); }
             });
