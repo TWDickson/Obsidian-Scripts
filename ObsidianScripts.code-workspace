@@ -33,6 +33,26 @@
 			"git commit": true,
 			"git push": true,
 			"npx vitest": true
-		}
+		},
+		"workbench.colorCustomizations": {
+			"activityBar.activeBackground": "#6531c7",
+			"activityBar.background": "#6531c7",
+			"activityBar.foreground": "#e7e7e7",
+			"activityBar.inactiveForeground": "#e7e7e799",
+			"activityBarBadge.background": "#331a0d",
+			"activityBarBadge.foreground": "#e7e7e7",
+			"commandCenter.border": "#e7e7e799",
+			"sash.hoverBorder": "#6531c7",
+			"statusBar.background": "#50279e",
+			"statusBar.foreground": "#e7e7e7",
+			"statusBarItem.hoverBackground": "#6531c7",
+			"statusBarItem.remoteBackground": "#50279e",
+			"statusBarItem.remoteForeground": "#e7e7e7",
+			"titleBar.activeBackground": "#50279e",
+			"titleBar.activeForeground": "#e7e7e7",
+			"titleBar.inactiveBackground": "#50279e99",
+			"titleBar.inactiveForeground": "#e7e7e799"
+		},
+		"peacock.color": "#50279e"
 	}
 }
