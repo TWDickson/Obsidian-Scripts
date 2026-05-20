@@ -32,7 +32,11 @@
 			"git add": true,
 			"git commit": true,
 			"git push": true,
-			"npx vitest": true
+			"npx vitest": true,
+			"/^npm\\.cmd test$/": {
+				"approve": true,
+				"matchCommandLine": true
+			}
 		},
 		"workbench.colorCustomizations": {
 			"activityBar.activeBackground": "#6531c7",
