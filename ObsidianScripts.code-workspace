@@ -36,6 +36,10 @@
 			"/^npm\\.cmd test$/": {
 				"approve": true,
 				"matchCommandLine": true
+			},
+			"/^Set-Location C:/Users/DICKSOTAYL/Projects/ttasks; npm\\.cmd test$/": {
+				"approve": true,
+				"matchCommandLine": true
 			}
 		},
 		"workbench.colorCustomizations": {
