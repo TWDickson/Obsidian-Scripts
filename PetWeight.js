@@ -123,6 +123,17 @@ function getFallbackPatternModalCss(extraCss = '') {
 
 async function start(params, settings) {
     const app = params.app;
+
+    // Cold-start guard: when the Shortcut cold-launches Obsidian, the vault file
+    // index (and Dataview) may not be ready yet, which makes pet-name resolution
+    // fail and fall back to a non-canonical link. If the file list is empty, wait
+    // for layout-ready before continuing. No cost on a warm run (list is populated).
+    try {
+        if (app.vault?.getFiles && app.vault.getFiles().length === 0 && app.workspace?.onLayoutReady) {
+            await new Promise(res => app.workspace.onLayoutReady(() => res()));
+        }
+    } catch (e) {}
+
     const variables = params.variables = params.variables || {};
     const Modal = params.obsidian?.Modal ?? globalThis.Modal;
     const dataView = app.plugins.plugins.dataview?.api;
@@ -244,6 +255,51 @@ async function start(params, settings) {
         }
         return s;
     }
+    // Canonicalize ANY pet reference to a full aliased wiki link:
+    //   [[Personal/Pets/Pet Identities/Name.md|Name]]
+    // Handles full links, short [[Name]], aliased [[target|Name]], bare "Name", and paths.
+    // Used on BOTH the modal and the Shortcut/URI prepopulated paths so stored
+    // for_pet values can never drift between formats.
+    function canonicalizePetLink(input, dvPages) {
+        if (!input) return '';
+        let s = String(input).trim();
+        if (!s) return '';
+
+        // Derive a lookup key (the pet's basename) from whatever form arrived.
+        // Strip [[ ]] if present, then prefer the alias after any '|'.
+        let inner = s;
+        const linkMatch = s.match(/^\[\[([^\]]+)\]\]$/);
+        if (linkMatch) inner = linkMatch[1];
+        const parts = inner.split('|');
+        let key = (parts[1] || parts[0] || '').trim();
+        if (key.includes('/')) key = key.split('/').pop();
+        if (key.toLowerCase().endsWith('.md')) key = key.slice(0, -3);
+
+        const keyLower = key.toLowerCase();
+
+        // Prefer Dataview pages; fall back to scanning vault files (works on mobile).
+        if (dvPages && dvPages.length) {
+            const hit = dvPages.find(p => p.file && String(p.file.name).toLowerCase() === keyLower);
+            if (hit && hit.file) return `[[${hit.file.path}|${hit.file.name}]]`;
+        }
+        try {
+            const files = (app && app.vault && app.vault.getFiles) ? app.vault.getFiles() : [];
+            const f = files.find(file => {
+                    const p = String(file.path || '').toLowerCase();
+                    return p.includes('personal/pets') && p.endsWith(`/${keyLower}.md`);
+                })
+                || files.find(file => String(file.basename || '').toLowerCase() === keyLower);
+            if (f) return `[[${f.path}|${f.basename}]]`;
+        } catch (e) {}
+
+        // Unresolved (e.g. cold start before the vault index is ready): fall back to
+        // the conventional identities folder so the stored value is still canonical.
+        // Pets live in "Personal/Pets/Pet Identities/<Name>.md" — update this path
+        // here if you ever move the identity notes.
+        if (key) return `[[Personal/Pets/Pet Identities/${key}.md|${key}]]`;
+        return s.includes('[[') ? s : key;
+    }
+
     // Lightweight modal for manual entry (single modal) — always shown during development
     class WeightModal extends Modal {
         constructor(app, resolve, defaultTime) {
@@ -353,7 +409,7 @@ async function start(params, settings) {
             if (this._resolved) return;
             // Inline validation: pet required, weight required > 0, hunger must be integer 1-5
             const rawPetVal = (this.petSelect ? (this.petSelect.value === 'Other' ? (this.petOtherInput ? this.petOtherInput.value.trim() : '') : this.petSelect.value) : (this.petInput ? this.petInput.value.trim() : (variables.for_pet || '')));
-            const petVal = resolvePetLinkOrPath(rawPetVal, dvPetPages);
+            const petVal = canonicalizePetLink(rawPetVal, dvPetPages);
             if (!petVal || String(petVal).trim() === '') {
                 try { this.errorEl.setText('Please select or enter a pet.'); this.errorEl.style.display = 'block'; } catch(e){}
                 return;
@@ -413,7 +469,7 @@ async function start(params, settings) {
             hunger_scale: (raw_hunger === undefined || raw_hunger === '') ? 1 : toNumber(raw_hunger)
         };
         // If for_pet was provided as a plain name, try to resolve via Dataview
-        try { result.for_pet = resolvePetLink(result.for_pet, dvPetPages); } catch (e) {}
+        try { result.for_pet = canonicalizePetLink(result.for_pet, dvPetPages); } catch (e) {}
         console.log('Using prepopulated PetWeight variables:', result);
         // Validate prepopulated values: pet present, weight > 0, hunger 1-5
         const pw = result.weight;
